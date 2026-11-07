@@ -222,6 +222,10 @@ async function registerPack(folder, obj) {
 	}
 	game.saveConfig("extension_" + name + "_enable", true);
 	await game["import"]("extension", obj);
+	/* 加载完立刻置回关闭：同名原包文件夹下次启动就不会被引擎再加载一遍（否则武将重复） */
+	try {
+		game.saveConfig("extension_" + name + "_enable", false);
+	} catch (e) {}
 	loaded.push(name);
 	try {
 		delete lib.extensionMenu["extension_" + name];

@@ -1,5 +1,5 @@
 {
-	"generated": "2026-11-07T19:07:49.530Z",
+	"generated": "2026-11-07T19:08:59.123Z",
 	"generator": "noname-ext-cloud",
 	"note": "此文件由发布脚本自动生成，请勿手改",
 	"extensions": {
@@ -15,8 +15,8 @@
 		},
 		"新罗合辑": {
 			"extension.js": {
-				"sha": "55861d173172fd4da46d0735682dd6475c22871a",
-				"size": 7938
+				"sha": "1b48bb657d5119c253281a2789b3cd7b33cd423a",
+				"size": 8148
 			},
 			"info.json": {
 				"sha": "6c62f537f9f7e9d3a41a7a56920b7b615c56317b",
