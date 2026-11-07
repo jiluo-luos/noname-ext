@@ -1,5 +1,5 @@
 {
-	"generated": "2026-11-07T18:17:21.217Z",
+	"generated": "2026-11-07T18:33:56.764Z",
 	"generator": "noname-ext-cloud",
 	"note": "此文件由发布脚本自动生成，请勿手改",
 	"extensions": {
@@ -39,14 +39,14 @@
 				"size": 20319
 			}
 		},
-		"云端更新": {
+		"新罗服云端更新": {
 			"extension.js": {
-				"sha": "34f5f10e03996c2c39e8c537fb622af1adb0c3b3",
-				"size": 18447
+				"sha": "61526ff068dda27cd8be7b1761a7fe70648e2722",
+				"size": 18615
 			},
 			"info.json": {
-				"sha": "efa3bd51f5357cc88d151d400ec3b353f7b99368",
-				"size": 312
+				"sha": "0d3da2a9e3bc493a4cfd46abeeb074bf49bed6ae",
+				"size": 394
 			}
 		},
 		"新菠萝包": {

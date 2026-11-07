@@ -2,8 +2,9 @@ import { lib, game, ui, get, ai, _status } from "../../noname.js";
 
 export const type = "extension";
 
-const CONF = (key) => "extension_云端更新_" + key;
+const CONF = (key) => "extension_新罗服云端更新_" + key;
 const MANIFEST = "_manifest.json";
+const DEFAULT_REPO = "jiluo-luos/noname-ext";
 
 /* ---------------- 运行环境 ---------------- */
 
@@ -76,7 +77,7 @@ function errText(e) {
 
 function log(text) {
 	try {
-		console.log("[云端更新] " + text);
+		console.log("[新罗服云端更新] " + text);
 	} catch (e) {}
 }
 
@@ -198,7 +199,7 @@ function walkDir(dir) {
 	return result;
 }
 
-/* ---------------- 云端来源：API / 清单 ---------------- */
+/* ---------------- 云端来源：接口 / 清单 ---------------- */
 
 async function ghFetch(url, options) {
 	const opts = options || {};
@@ -463,7 +464,7 @@ async function runCheck(options) {
 	const force = !!opts.force;
 	if (!nodeFs || !nodePath) {
 		if (manual) {
-			alert("「云端更新」只能运行在电脑版无名杀（需要读写扩展文件夹的权限）。");
+			alert("「新罗服云端更新」只能运行在电脑版无名杀（需要读写扩展文件夹的权限）。");
 		}
 		return;
 	}
@@ -479,10 +480,10 @@ async function runCheck(options) {
 		}
 		return;
 	}
-	const parsed = parseRepo(cfg("repo", ""));
+	const parsed = parseRepo(cfg("repo", DEFAULT_REPO));
 	if (!parsed) {
 		if (manual) {
-			alert("请先在扩展设置里填写仓库地址，形如：你的用户名/noname-ext");
+			alert("仓库地址不正确，应形如：用户名/仓库名");
 		}
 		return;
 	}
@@ -566,22 +567,22 @@ async function runCheck(options) {
 
 export default function () {
 	return {
-		name: "云端更新",
+		name: "新罗服云端更新",
 		editable: false,
 		config: {
-			auto: {
-				name: "启动时自动检查",
-				intro: "开启后每次启动游戏（不在联机房间时）会与云端核对一次文件指纹；发现差异会先询问你，确认后才下载。",
-				init: true,
-			},
 			repo: {
 				name: "仓库地址",
-				intro: "GitHub 仓库，形如 用户名/仓库名（如 jiluo-luos/noname-ext）。程序会扫描仓库根目录下所有含 extension.js 的文件夹，各视为一个扩展。",
-				init: "",
+				intro: "已预填 jiluo-luos/noname-ext，一般不需要改。也可填完整网址 https://github.com/用户名/仓库名。程序会扫描仓库根目录下所有含 extension.js 的文件夹，各视为一个扩展。",
+				init: DEFAULT_REPO,
 				input: true,
 				onblur: function () {
 					saveInput(this, "repo");
 				},
+			},
+			auto: {
+				name: "启动时自动检查",
+				intro: "开启后每次启动游戏（不在联机房间时）会与云端核对一次文件指纹；发现差异会先询问你，确认后才下载。",
+				init: true,
 			},
 			branch: {
 				name: "分支",
@@ -645,9 +646,9 @@ export default function () {
 			}, 2500);
 		},
 		package: {
-			intro: "按文件指纹与 GitHub 仓库自动对齐扩展：只下载有变化的文件，发现差异先询问再同步，写入后重启游戏生效。仅支持电脑版。",
+			intro: "按文件指纹与新罗服云端仓库自动对齐扩展：仓库地址已内嵌，打开即用；只下载有变化的文件，发现差异先询问再同步，写入后重启游戏生效。仅支持电脑版。",
 			author: "无名杀工坊",
-			version: "1.0.0",
+			version: "1.1.0",
 		},
 	};
 }
