@@ -1,5 +1,5 @@
 {
-	"generated": "2026-11-07T19:07:22.834Z",
+	"generated": "2026-11-07T19:07:49.530Z",
 	"generator": "noname-ext-cloud",
 	"note": "此文件由发布脚本自动生成，请勿手改",
 	"extensions": {
@@ -11,32 +11,6 @@
 			"info.json": {
 				"sha": "3f150612a9bd3cf21783ff0f03df65682e651422",
 				"size": 164
-			}
-		},
-		"一将成名-解构-菠萝包": {
-			"audio/die/jieboluo_wuyi1.mp3": {
-				"sha": "4ba08fa258deaae1e8f03b8eeacd83ea3dd6945e",
-				"size": 20319
-			},
-			"audio/skill/jieboluo_benxi1.mp3": {
-				"sha": "497905fc5291ceb48a9c9782dc057667b237b8fe",
-				"size": 15516
-			},
-			"audio/skill/jieboluo_benxi2.mp3": {
-				"sha": "28ee7f6bf1e9b00cf0e77b269e65958680063009",
-				"size": 18024
-			},
-			"extension.js": {
-				"sha": "c1ad2908c360312ab0253e854e90337918b0a3ed",
-				"size": 6285
-			},
-			"image/jieboluo_wuyi.jpg": {
-				"sha": "d21e66e73e1be393585f20c8e6ce55956f2ccfb9",
-				"size": 1118429
-			},
-			"info.json": {
-				"sha": "cab83fcf2db40896b815c23acdec9b9db877643f",
-				"size": 199
 			}
 		},
 		"新罗合辑": {
@@ -185,68 +159,6 @@
 				"size": 165
 			}
 		},
-		"标准包-解构-菠萝包": {
-			"audio/die/jieboluo_guanyu1.mp3": {
-				"sha": "b4fda6a527f52f920e01ebe83a0566e15fce1968",
-				"size": 179200
-			},
-			"audio/die/jieboluo_yuejin1.mp3": {
-				"sha": "f4de5accc758246b5053fe2a2fcc511f803b5917",
-				"size": 102055
-			},
-			"audio/skill/jieboluo_qiexing1.mp3": {
-				"sha": "bffedffaea2029cf2f132efd84727531db65820b",
-				"size": 50855
-			},
-			"audio/skill/jieboluo_wusheng1.mp3": {
-				"sha": "e5477900d195e65c6c199b2ace8c6f15d6ddb4b5",
-				"size": 89861
-			},
-			"audio/skill/jieboluo_wusheng2.mp3": {
-				"sha": "77f0b75b09c775e2538db07a9d63c96a33b643eb",
-				"size": 75233
-			},
-			"audio/skill/jieboluo_wusheng_damage1.mp3": {
-				"sha": "178382defcb078c8992a1d5d404972158c640065",
-				"size": 60082
-			},
-			"audio/skill/jieboluo_wusheng_damage2.mp3": {
-				"sha": "4e63a5a91c1a0a75975aa8ad5779f62c76d9ee4d",
-				"size": 75233
-			},
-			"audio/skill/jieboluo_xiandeng1.mp3": {
-				"sha": "d180213e3d6df3445ad657d43511c26b66447807",
-				"size": 98920
-			},
-			"audio/skill/jieboluo_xiandeng2.mp3": {
-				"sha": "87667a1c5660a8313d74541e56182ab5bf988bf8",
-				"size": 116161
-			},
-			"audio/skill/jieboluo_xiaoguo1.mp3": {
-				"sha": "32203a3d32d98eaf1d47998e1ebc2dac0ae23fb6",
-				"size": 85859
-			},
-			"audio/skill/jieboluo_xiaoguo2.mp3": {
-				"sha": "abec3559700ea9101738e27877c003a6442d3451",
-				"size": 87426
-			},
-			"extension.js": {
-				"sha": "690ad0d0b99b4713b76dc2feab32549cf6b849e2",
-				"size": 29070
-			},
-			"image/jieboluo_guanyu.jpg": {
-				"sha": "f2793053e918958431e1771a9a871ac60d393f43",
-				"size": 629429
-			},
-			"image/jieboluo_yuejin.jpg": {
-				"sha": "704925b0fcc79e8e590f9df6f2ba34b778da21ae",
-				"size": 1367706
-			},
-			"info.json": {
-				"sha": "e91073f1062531a077aff61a86f355a35031ac10",
-				"size": 224
-			}
-		},
 		"武将管理-高呼吾名玖罗": {
 			"extension.js": {
 				"sha": "ddef59afb99a24759950aefa15cc3ceff60f3c11",
@@ -255,40 +167,6 @@
 			"info.json": {
 				"sha": "e514e19e56469cd5d1b9f177e0210e52e42bd157",
 				"size": 721
-			}
-		},
-		"神话再临-解构-菠萝包": {
-			"audio/die/jieboluo_pangtong1.mp3": {
-				"sha": "0380afc744ac776acb13d6a0cc9ffba3842e0143",
-				"size": 55005
-			},
-			"audio/skill/jieboluo_lianhuan1.mp3": {
-				"sha": "797d8db17bd808e27950f0e31ee970df93c2acf4",
-				"size": 32435
-			},
-			"audio/skill/jieboluo_lianhuan2.mp3": {
-				"sha": "f9a882efafaa83f9fd8962a37c8fbc2f13ab3ca4",
-				"size": 21150
-			},
-			"audio/skill/jieboluo_niepan1.mp3": {
-				"sha": "bd1ff3549b516e639d6584bdfd618cf27aae1b9d",
-				"size": 28046
-			},
-			"audio/skill/jieboluo_niepan2.mp3": {
-				"sha": "5fab190c7911595cfb89c8d6b22a25de2703c17a",
-				"size": 18015
-			},
-			"extension.js": {
-				"sha": "23fa5404dae4a549e55d2dca2864fdee246858af",
-				"size": 28874
-			},
-			"image/jieboluo_pangtong.jpg": {
-				"sha": "a45bfe3eab3b7889f9480aaf5720945dcd371153",
-				"size": 48665
-			},
-			"info.json": {
-				"sha": "ba9bc921c954787d018633d61867eeb8f04c30d8",
-				"size": 245
 			}
 		}
 	}
