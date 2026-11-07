@@ -1,5 +1,5 @@
 {
-	"generated": "2026-11-07T18:37:44.392Z",
+	"generated": "2026-11-07T18:41:38.913Z",
 	"generator": "noname-ext-cloud",
 	"note": "此文件由发布脚本自动生成，请勿手改",
 	"extensions": {
@@ -41,12 +41,12 @@
 		},
 		"新罗服云端更新": {
 			"extension.js": {
-				"sha": "61526ff068dda27cd8be7b1761a7fe70648e2722",
-				"size": 18615
+				"sha": "392e1e0d9183dbf2dcd7e4d6921f4222012f301c",
+				"size": 21865
 			},
 			"info.json": {
-				"sha": "0d3da2a9e3bc493a4cfd46abeeb074bf49bed6ae",
-				"size": 394
+				"sha": "89785e249b53c3f97acf76206f4e1cb092907ce7",
+				"size": 448
 			}
 		},
 		"新菠萝包": {
@@ -129,10 +129,6 @@
 			"info.json": {
 				"sha": "e514e19e56469cd5d1b9f177e0210e52e42bd157",
 				"size": 721
-			},
-			"noname-kit.history.json": {
-				"sha": "c5c406dfa4a982e652041477877184d2986c6192",
-				"size": 143
 			}
 		},
 		"神话再临-解构-菠萝包": {
@@ -156,10 +152,6 @@
 				"sha": "5fab190c7911595cfb89c8d6b22a25de2703c17a",
 				"size": 18015
 			},
-			"backup/extension.20261107-143801-905017.js": {
-				"sha": "87c77166464f7345509bb705077108fe5772f318",
-				"size": 24754
-			},
 			"extension.js": {
 				"sha": "23fa5404dae4a549e55d2dca2864fdee246858af",
 				"size": 28874
@@ -171,10 +163,6 @@
 			"info.json": {
 				"sha": "ba9bc921c954787d018633d61867eeb8f04c30d8",
 				"size": 245
-			},
-			"noname-kit.history.json": {
-				"sha": "7ac35bb13942b708ecdcd95233e910c0762c710b",
-				"size": 206
 			}
 		}
 	}

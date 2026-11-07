@@ -60,12 +60,123 @@ function appDir() {
 	return "";
 }
 
-function extRootDir() {
-	const base = appDir();
-	if (!base) {
-		return "";
+/* 电脑版走 fs，手机版（PE）走引擎的 cordova 文件接口 */
+const STORAGE = (() => {
+	if (nodeFs && nodePath && appDir()) {
+		return "node";
 	}
-	return nodePath ? nodePath.join(base, "extension") : base + "/extension";
+	try {
+		const p = game && game.promises;
+		if (p && typeof p.getFileList === "function" && typeof p.readFile === "function" && typeof p.writeFile === "function") {
+			return "game";
+		}
+	} catch (e) {}
+	return null;
+})();
+
+function absOf(rel) {
+	return nodePath ? nodePath.join(appDir(), rel) : appDir() + "/" + rel;
+}
+
+async function existsRel(rel) {
+	if (STORAGE === "node") {
+		return nodeFs.existsSync(absOf(rel));
+	}
+	try {
+		const r = await game.promises.checkFile(rel);
+		return r === 1;
+	} catch (e) {
+		return false;
+	}
+}
+
+async function readRel(rel) {
+	if (STORAGE === "node") {
+		return nodeFs.readFileSync(absOf(rel));
+	}
+	return await game.promises.readFile(rel);
+}
+
+async function writeRel(rel, bytes) {
+	if (STORAGE === "node") {
+		const full = absOf(rel);
+		const parent = nodePath.dirname(full);
+		if (!nodeFs.existsSync(parent)) {
+			nodeFs.mkdirSync(parent, { recursive: true });
+		}
+		nodeFs.writeFileSync(full, bytes);
+		return;
+	}
+	const index = rel.lastIndexOf("/");
+	await game.promises.writeFile(bytes, rel.slice(0, index), rel.slice(index + 1));
+}
+
+async function removeRel(rel) {
+	if (STORAGE === "node") {
+		nodeFs.unlinkSync(absOf(rel));
+		return;
+	}
+	await game.promises.removeFile(rel);
+}
+
+async function scanExt(name) {
+	const base = "extension/" + name;
+	const out = new Map();
+	if (STORAGE === "node") {
+		const abs = absOf(base);
+		if (!nodeFs.existsSync(abs)) {
+			return out;
+		}
+		const stack = [["", abs]];
+		while (stack.length) {
+			const item = stack.pop();
+			const rel = item[0];
+			const dir = item[1];
+			let entries;
+			try {
+				entries = nodeFs.readdirSync(dir, { withFileTypes: true });
+			} catch (e) {
+				continue;
+			}
+			for (const entry of entries) {
+				const childRel = rel ? rel + "/" + entry.name : entry.name;
+				const childAbs = nodePath.join(dir, entry.name);
+				if (entry.isDirectory()) {
+					stack.push([childRel, childAbs]);
+				} else if (entry.isFile()) {
+					let size = null;
+					try {
+						size = nodeFs.statSync(childAbs).size;
+					} catch (e) {}
+					out.set(childRel, { size: size });
+				}
+			}
+		}
+		return out;
+	}
+	if (!(await existsRel(base))) {
+		return out;
+	}
+	const queue = [""];
+	while (queue.length) {
+		const rel = queue.shift();
+		const dirRel = rel ? base + "/" + rel : base;
+		let result;
+		try {
+			result = await game.promises.getFileList(dirRel);
+		} catch (e) {
+			continue;
+		}
+		const folders = (result && result[0]) || [];
+		const files = (result && result[1]) || [];
+		for (const file of files) {
+			out.set(rel ? rel + "/" + file : file, { size: null });
+		}
+		for (const folder of folders) {
+			queue.push(rel ? rel + "/" + folder : folder);
+		}
+	}
+	return out;
 }
 
 function errText(e) {
@@ -343,46 +454,45 @@ async function loadCloud(parsed, token, mirror) {
 /* ---------------- 差异比对 ---------------- */
 
 async function diffExtension(name, remoteFiles) {
-	const root = extRootDir();
-	const localDir = nodePath ? nodePath.join(root, name) : root + "/" + name;
-	const isNewExt = !nodeFs.existsSync(localDir);
-	const localFiles = isNewExt ? new Map() : walkDir(localDir);
+	const baseRel = "extension/" + name;
+	const isNewExt = !(await existsRel(baseRel));
+	const localFiles = isNewExt ? new Map() : await scanExt(name);
 	const need = [];
 	for (const pair of remoteFiles) {
 		const rel = pair[0];
 		const info = pair[1];
-		const local = localFiles.get(rel);
-		if (!local) {
-			need.push({ rel: rel, sha: info.sha, reason: "新增" });
+		const found = localFiles.get(rel);
+		if (!found) {
+			need.push({ rel: rel, sha: info.sha });
 			continue;
 		}
-		if (local.size !== info.size) {
-			need.push({ rel: rel, sha: info.sha, reason: "大小不同" });
+		if (found.size !== null && info.size && found.size !== info.size) {
+			need.push({ rel: rel, sha: info.sha });
 			continue;
 		}
 		let localSha = "";
 		try {
-			localSha = await blobSha1(nodeFs.readFileSync(local.abs));
+			localSha = await blobSha1(await readRel(baseRel + "/" + rel));
 		} catch (e) {
 			localSha = "";
 		}
 		if (localSha !== info.sha) {
-			need.push({ rel: rel, sha: info.sha, reason: "内容不同" });
+			need.push({ rel: rel, sha: info.sha });
 		}
 	}
-	let localOnly = 0;
+	const extras = [];
 	for (const rel of localFiles.keys()) {
 		if (!remoteFiles.has(rel)) {
-			localOnly++;
+			extras.push(rel);
 		}
 	}
 	return {
 		name: name,
-		localDir: localDir,
+		baseRel: baseRel,
 		isNewExt: isNewExt,
 		files: remoteFiles,
 		need: need,
-		localOnly: localOnly,
+		extras: extras,
 	};
 }
 
@@ -449,7 +559,8 @@ function formatPlan(plan) {
 	const lines = [];
 	for (const item of plan) {
 		const tag = item.isNewExt ? "（新扩展）" : "";
-		lines.push(item.name + tag + "：" + item.need.length + " 个文件");
+		const cut = item.extras && item.extras.length ? "，清理旧文件 " + item.extras.length + " 个" : "";
+		lines.push(item.name + tag + "：" + item.need.length + " 个文件" + cut);
 	}
 	const shown = lines.slice(0, 8);
 	if (lines.length > 8) {
@@ -462,15 +573,9 @@ async function runCheck(options) {
 	const opts = options || {};
 	const manual = !!opts.manual;
 	const force = !!opts.force;
-	if (!nodeFs || !nodePath) {
+	if (!STORAGE) {
 		if (manual) {
-			alert("「新罗服云端更新」只能运行在电脑版无名杀（需要读写扩展文件夹的权限）。");
-		}
-		return;
-	}
-	if (!extRootDir()) {
-		if (manual) {
-			alert("无法定位游戏目录，功能不可用。");
+			alert("这台设备既没有电脑版的文件权限，也没有手机端的文件接口，无法自动更新。");
 		}
 		return;
 	}
@@ -491,6 +596,7 @@ async function runCheck(options) {
 	try {
 		const token = String(cfg("token", "")).trim();
 		const mirror = normalizeMirror(cfg("mirror", ""));
+		const cleanup = cfg("cleanup", true) !== false;
 		const cloud = await loadCloud(parsed, token, mirror);
 		const branch = cloud.branch;
 		const extensions = cloud.extensions;
@@ -506,10 +612,13 @@ async function runCheck(options) {
 			const diff = await diffExtension(item.name, item.files);
 			if (force) {
 				diff.need = Array.from(item.files.keys()).map((rel) => {
-					return { rel: rel, sha: item.files.get(rel).sha, reason: "强制" };
+					return { rel: rel, sha: item.files.get(rel).sha };
 				});
 			}
-			if (diff.need.length) {
+			if (!cleanup) {
+				diff.extras = [];
+			}
+			if (diff.need.length || diff.extras.length) {
 				plan.push(diff);
 			}
 		}
@@ -525,7 +634,7 @@ async function runCheck(options) {
 		}
 		const asked = force
 			? "强制重下：" + plan.length + " 个扩展，共 " + total + " 个文件。\n\n" + formatPlan(plan) + "\n\n现在开始吗？"
-			: "云端发现 " + plan.length + " 个扩展有变化，共 " + total + " 个文件需要同步：\n\n" + formatPlan(plan) + "\n\n只下载有变化的文件，现在开始吗？";
+			: "云端有变化，共 " + total + " 个文件需要同步：\n\n" + formatPlan(plan) + "\n\n同名扩展会以云端为准整体替换，现在开始吗？";
 		if (!confirm(asked)) {
 			return;
 		}
@@ -539,11 +648,22 @@ async function runCheck(options) {
 						"《" + item.name + "/" + file.rel + "》校验失败（云端 " + String(file.sha).slice(0, 8) + "，下载得到 " + sha.slice(0, 8) + "），已中止，未修改任何文件。"
 					);
 				}
-				payload.push({ localDir: item.localDir, rel: file.rel, bytes: bytes });
+				payload.push({ absRel: item.baseRel + "/" + file.rel, bytes: bytes });
 			}
 		}
 		for (const item of payload) {
-			writeLocalFile(item.localDir, item.rel, item.bytes);
+			await writeRel(item.absRel, item.bytes);
+		}
+		let removed = 0;
+		for (const item of plan) {
+			for (const rel of item.extras) {
+				try {
+					await removeRel(item.baseRel + "/" + rel);
+					removed++;
+				} catch (e) {
+					log("删除失败 " + item.name + "/" + rel);
+				}
+			}
 		}
 		const fresh = [];
 		for (const item of plan) {
@@ -555,9 +675,10 @@ async function runCheck(options) {
 			registerNewExtension(name);
 		}
 		saveCfg("lastsync", String(Date.now()));
-		log("同步完成，" + payload.length + " 个文件");
+		log("同步完成，" + payload.length + " 个文件，清理 " + removed + " 个");
 		const extra = fresh.length ? "\n已自动启用新扩展：" + fresh.join("、") : "";
-		alert("同步完成：已更新 " + payload.length + " 个文件。\n请重启游戏后生效。" + extra);
+		const cutText = removed ? "，清理旧文件 " + removed + " 个" : "";
+		alert("同步完成：更新 " + payload.length + " 个文件" + cutText + "。\n请重启游戏后生效。" + extra);
 	} finally {
 		checking = false;
 	}
@@ -582,6 +703,11 @@ export default function () {
 			auto: {
 				name: "启动时自动检查",
 				intro: "开启后每次启动游戏（不在联机房间时）会与云端核对一次文件指纹；发现差异会先询问你，确认后才下载。",
+				init: true,
+			},
+			cleanup: {
+				name: "同名扩展整体替换",
+				intro: "开启后同名扩展以云端为准：云端已删掉的文件会从本地一并删除。关闭则只覆盖新增，不动本地多余文件。",
 				init: true,
 			},
 			branch: {
@@ -646,9 +772,9 @@ export default function () {
 			}, 2500);
 		},
 		package: {
-			intro: "按文件指纹与新罗服云端仓库自动对齐扩展：仓库地址已内嵌，打开即用；只下载有变化的文件，发现差异先询问再同步，写入后重启游戏生效。仅支持电脑版。",
+			intro: "按文件指纹与新罗服云端仓库自动对齐扩展：仓库地址已内嵌，打开即用；同名扩展以云端为准整体替换，只下载有变化的文件，写入后重启游戏生效。电脑版与手机版（PE）均可。",
 			author: "无名杀工坊",
-			version: "1.1.0",
+			version: "1.2.0",
 		},
 	};
 }
