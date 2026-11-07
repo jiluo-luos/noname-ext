@@ -482,9 +482,13 @@ async function diffExtension(name, remoteFiles) {
 	}
 	const extras = [];
 	for (const rel of localFiles.keys()) {
-		if (!remoteFiles.has(rel)) {
-			extras.push(rel);
+		if (remoteFiles.has(rel)) {
+			continue;
 		}
+		if (rel === "noname-kit.history.json" || rel.indexOf("backup/") === 0 || rel.endsWith(".bak") || rel.endsWith(".bak.js")) {
+			continue;
+		}
+		extras.push(rel);
 	}
 	return {
 		name: name,
