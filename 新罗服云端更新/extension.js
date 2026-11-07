@@ -84,7 +84,11 @@ async function existsRel(rel) {
 	}
 	try {
 		const r = await game.promises.checkFile(rel);
-		return r === 1;
+		return r === 1 || r === 0;
+	} catch (e) {}
+	try {
+		const d = await game.promises.checkDir(rel);
+		return d === 1 || d === 0;
 	} catch (e) {
 		return false;
 	}
@@ -108,7 +112,13 @@ async function writeRel(rel, bytes) {
 		return;
 	}
 	const index = rel.lastIndexOf("/");
-	await game.promises.writeFile(bytes, rel.slice(0, index), rel.slice(index + 1));
+	const relDir = rel.slice(0, index);
+	const relName = rel.slice(index + 1);
+	if (typeof Blob === "function") {
+		await game.promises.writeFile(new Blob([bytes]), relDir, relName);
+		return;
+	}
+	await game.promises.writeFile(bytes, relDir, relName);
 }
 
 async function removeRel(rel) {
@@ -145,10 +155,13 @@ async function scanExt(name) {
 					stack.push([childRel, childAbs]);
 				} else if (entry.isFile()) {
 					let size = null;
+					let mtime = null;
 					try {
-						size = nodeFs.statSync(childAbs).size;
+						const stat = nodeFs.statSync(childAbs);
+						size = stat.size;
+						mtime = stat.mtimeMs;
 					} catch (e) {}
-					out.set(childRel, { size: size });
+					out.set(childRel, { size: size, mtime: mtime });
 				}
 			}
 		}
@@ -434,20 +447,21 @@ async function fetchFromManifest(parsed, mirror) {
 }
 
 async function loadCloud(parsed, token, mirror) {
-	let apiError = null;
-	try {
-		const result = await fetchFromApi(parsed, token);
-		if (result.extensions.length) {
-			return { branch: result.branch, extensions: result.extensions, source: "接口" };
-		}
-	} catch (e) {
-		apiError = e;
+	/* 有 Token 走官方接口（5000 次/小时，最准）；没 Token 直接读清单，避开限流与一次多余往返 */
+	if (token) {
+		try {
+			const result = await fetchFromApi(parsed, token);
+			if (result.extensions.length) {
+				return { branch: result.branch, extensions: result.extensions, source: "接口" };
+			}
+		} catch (e) {}
 	}
 	try {
 		const result = await fetchFromManifest(parsed, mirror);
 		return { branch: result.branch, extensions: result.extensions, source: "清单" };
 	} catch (e) {
-		throw apiError || e;
+		const result = await fetchFromApi(parsed, token);
+		return { branch: result.branch, extensions: result.extensions, source: "接口" };
 	}
 }
 
@@ -457,6 +471,8 @@ async function diffExtension(name, remoteFiles) {
 	const baseRel = "extension/" + name;
 	const isNewExt = !(await existsRel(baseRel));
 	const localFiles = isNewExt ? new Map() : await scanExt(name);
+	const cached = hashCache[name] || {};
+	const fresh = {};
 	const need = [];
 	for (const pair of remoteFiles) {
 		const rel = pair[0];
@@ -471,15 +487,24 @@ async function diffExtension(name, remoteFiles) {
 			continue;
 		}
 		let localSha = "";
-		try {
-			localSha = await blobSha1(await readRel(baseRel + "/" + rel));
-		} catch (e) {
-			localSha = "";
+		const old = cached[rel];
+		if (found.mtime !== null && found.mtime !== undefined && old && old[0] === found.size && old[1] === found.mtime) {
+			localSha = old[2] || "";
+		} else {
+			try {
+				localSha = await blobSha1(await readRel(baseRel + "/" + rel));
+			} catch (e) {
+				localSha = "";
+			}
+		}
+		if (found.size !== null) {
+			fresh[rel] = [found.size, found.mtime === undefined ? null : found.mtime, localSha];
 		}
 		if (localSha !== info.sha) {
 			need.push({ rel: rel, sha: info.sha });
 		}
 	}
+	newCache[name] = fresh;
 	const extras = [];
 	for (const rel of localFiles.keys()) {
 		if (remoteFiles.has(rel)) {
@@ -554,6 +579,106 @@ function registerNewExtension(name) {
 	game.saveConfig("extension_" + name + "_enable", true);
 }
 
+/* ---------------- 进度界面 / 并发 / 缓存 ---------------- */
+
+function createProgressNode(title, max) {
+	const parent = ui.create.div(ui.window, {
+		textAlign: "center",
+		width: "320px",
+		height: "170px",
+		left: "calc(50% - 160px)",
+		top: "auto",
+		bottom: "calc(50% - 85px)",
+		position: "absolute",
+		zIndex: "10",
+		boxShadow: "rgb(0 0 0 / 40%) 0 0 0 1px, rgb(0 0 0 / 20%) 0 3px 10px",
+		backgroundImage: "linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4))",
+		borderRadius: "8px",
+		overflow: "hidden scroll",
+	});
+	parent.className = "dialog";
+	try {
+		if (lib.element && lib.element.Dialog) {
+			Object.setPrototypeOf(parent, lib.element.Dialog.prototype);
+		}
+	} catch (e) {}
+	const container = ui.create.div(parent, {
+		position: "relative",
+		padding: "10px",
+		width: "100%",
+		boxSizing: "border-box",
+	});
+	const caption = ui.create.div(container, { fontSize: "20px", paddingBottom: "6px" });
+	caption.innerHTML = title;
+	const tip = ui.create.div(container, { fontSize: "15px", paddingBottom: "6px", wordBreak: "break-all" });
+	const nameSpan = document.createElement("span");
+	nameSpan.textContent = "准备中…";
+	tip.appendChild(nameSpan);
+	const counter = ui.create.div(container, { fontSize: "15px", paddingBottom: "6px" });
+	const bar = document.createElement("progress");
+	bar.className = "progress";
+	bar.value = 0;
+	bar.max = max && max > 0 ? max : 1;
+	bar.style.width = "100%";
+	container.appendChild(bar);
+	counter.textContent = "0 / " + bar.max;
+	parent.setFileName = function (text) {
+		nameSpan.textContent = text;
+	};
+	parent.setValue = function (value) {
+		bar.value = value;
+		counter.textContent = value + " / " + bar.max;
+	};
+	parent.setMax = function (max2) {
+		bar.max = max2;
+		counter.textContent = bar.value + " / " + max2;
+	};
+	parent.closeProgress = function () {
+		try {
+			parent.remove();
+		} catch (e) {}
+	};
+	return parent;
+}
+
+async function runPool(items, limit, worker) {
+	const results = new Array(items.length);
+	let next = 0;
+	const size = Math.max(1, Math.min(limit, items.length));
+	const runners = [];
+	for (let i = 0; i < size; i++) {
+		runners.push(
+			(async () => {
+				while (true) {
+					const index = next++;
+					if (index >= items.length) {
+						return;
+					}
+					results[index] = await worker(items[index], index);
+				}
+			})()
+		);
+	}
+	await Promise.all(runners);
+	return results;
+}
+
+let hashCache = {};
+let newCache = {};
+
+function loadHashCache() {
+	const raw = lib.config[CONF("cache")];
+	if (raw && typeof raw === "object") {
+		return raw;
+	}
+	if (typeof raw === "string" && raw) {
+		try {
+			return JSON.parse(raw);
+		} catch (e) {}
+	}
+	return {};
+}
+
 /* ---------------- 主流程 ---------------- */
 
 let checking = false;
@@ -563,12 +688,18 @@ function formatPlan(plan) {
 	const lines = [];
 	for (const item of plan) {
 		const tag = item.isNewExt ? "（新扩展）" : "";
-		const cut = item.extras && item.extras.length ? "，清理旧文件 " + item.extras.length + " 个" : "";
-		lines.push(item.name + tag + "：" + item.need.length + " 个文件" + cut);
+		const cut = item.extras && item.extras.length ? "，清理 " + item.extras.length + " 个" : "";
+		lines.push("【" + item.name + "】" + tag + " 下载 " + item.need.length + " 个" + cut);
+		for (const file of item.need.slice(0, 3)) {
+			lines.push("    · " + file.rel);
+		}
+		if (item.need.length > 3) {
+			lines.push("    · …等 " + item.need.length + " 个文件");
+		}
 	}
-	const shown = lines.slice(0, 8);
-	if (lines.length > 8) {
-		shown.push("……等 " + lines.length + " 个扩展");
+	const shown = lines.slice(0, 40);
+	if (lines.length > 40) {
+		shown.push("……（内容过多，已省略）");
 	}
 	return shown.join("\n");
 }
@@ -611,12 +742,15 @@ async function runCheck(options) {
 			return;
 		}
 		log("数据来源：" + cloud.source + "，共 " + extensions.length + " 个扩展");
+		const started = Date.now();
+		hashCache = loadHashCache();
+		newCache = {};
+		const diffs = await runPool(extensions, 4, (item) => diffExtension(item.name, item.files));
 		const plan = [];
-		for (const item of extensions) {
-			const diff = await diffExtension(item.name, item.files);
+		for (const diff of diffs) {
 			if (force) {
-				diff.need = Array.from(item.files.keys()).map((rel) => {
-					return { rel: rel, sha: item.files.get(rel).sha };
+				diff.need = Array.from(diff.files.keys()).map((rel) => {
+					return { rel: rel, sha: diff.files.get(rel).sha };
 				});
 			}
 			if (!cleanup) {
@@ -626,6 +760,8 @@ async function runCheck(options) {
 				plan.push(diff);
 			}
 		}
+		saveCfg("cache", newCache);
+		log("比对完成，" + (Date.now() - started) + " ms");
 		if (!plan.length) {
 			if (manual) {
 				alert("已是最新：" + extensions.length + " 个扩展与云端完全一致。");
@@ -642,21 +778,80 @@ async function runCheck(options) {
 		if (!confirm(asked)) {
 			return;
 		}
-		const payload = [];
+		const tasks = [];
 		for (const item of plan) {
 			for (const file of item.need) {
-				const bytes = await downloadFile(parsed, branch, item.name, file.rel, token, mirror);
-				const sha = await blobSha1(bytes);
-				if (sha !== file.sha) {
-					throw new Error(
-						"《" + item.name + "/" + file.rel + "》校验失败（云端 " + String(file.sha).slice(0, 8) + "，下载得到 " + sha.slice(0, 8) + "），已中止，未修改任何文件。"
-					);
-				}
-				payload.push({ absRel: item.baseRel + "/" + file.rel, bytes: bytes });
+				tasks.push({ item: item, rel: file.rel, sha: file.sha });
 			}
 		}
+		const payload = [];
+		let progressNode = null;
+		try {
+			progressNode = createProgressNode("新罗服云端更新", tasks.length);
+		} catch (e) {
+			progressNode = null;
+		}
+		let finished = 0;
+		try {
+			await runPool(tasks, 5, async (task) => {
+				const bytes = await downloadFile(parsed, branch, task.item.name, task.rel, token, mirror);
+				const sha = await blobSha1(bytes);
+				if (sha !== task.sha) {
+					throw new Error(
+						"《" + task.item.name + "/" + task.rel + "》校验失败（云端 " + String(task.sha).slice(0, 8) + "，下载得到 " + sha.slice(0, 8) + "），已中止，未修改任何文件。"
+					);
+				}
+				payload.push({ absRel: task.item.baseRel + "/" + task.rel, bytes: bytes, sha: sha });
+				finished++;
+				if (progressNode) {
+					try {
+						progressNode.setFileName(task.item.name + "/" + task.rel);
+						progressNode.setValue(finished);
+					} catch (e) {}
+				}
+			});
+		} catch (e) {
+			if (progressNode) {
+				progressNode.closeProgress();
+			}
+			throw e;
+		}
+		if (progressNode) {
+			try {
+				progressNode.setFileName("正在写入文件…");
+				progressNode.setValue(tasks.length);
+			} catch (e) {}
+		}
+		const failed = [];
 		for (const item of payload) {
 			await writeRel(item.absRel, item.bytes);
+			let backSha = "";
+			try {
+				backSha = await blobSha1(await readRel(item.absRel));
+			} catch (e) {
+				backSha = "";
+			}
+			if (backSha !== item.sha) {
+				failed.push(item.absRel);
+			}
+			const parts = item.absRel.split("/");
+			const nm = parts[1];
+			const rel = parts.slice(2).join("/");
+			if (STORAGE === "node" && backSha === item.sha) {
+				try {
+					const stat = nodeFs.statSync(absOf(item.absRel));
+					if (!newCache[nm]) {
+						newCache[nm] = {};
+					}
+					newCache[nm][rel] = [stat.size, stat.mtimeMs, item.sha];
+				} catch (e) {}
+			}
+		}
+		if (failed.length) {
+			if (progressNode) {
+				progressNode.closeProgress();
+			}
+			throw new Error("以下文件写入后校验不一致（多半是没有写入权限）：\n" + failed.slice(0, 8).join("\n") + (failed.length > 8 ? "\n…等 " + failed.length + " 个" : ""));
 		}
 		let removed = 0;
 		for (const item of plan) {
@@ -679,10 +874,13 @@ async function runCheck(options) {
 			registerNewExtension(name);
 		}
 		saveCfg("lastsync", String(Date.now()));
-		log("同步完成，" + payload.length + " 个文件，清理 " + removed + " 个");
+		if (progressNode) {
+			progressNode.closeProgress();
+		}
+		log("同步完成，" + payload.length + " 个文件，清理 " + removed + " 个，用时 " + (Date.now() - started) + " ms");
 		const extra = fresh.length ? "\n已自动启用新扩展：" + fresh.join("、") : "";
 		const cutText = removed ? "，清理旧文件 " + removed + " 个" : "";
-		alert("同步完成：更新 " + payload.length + " 个文件" + cutText + "。\n请重启游戏后生效。" + extra);
+		alert("同步完成：更新 " + payload.length + " 个文件" + cutText + "，用时 " + (Date.now() - started) + " ms。\n请重启游戏后生效。" + extra);
 	} finally {
 		checking = false;
 	}
@@ -761,24 +959,23 @@ export default function () {
 			},
 		},
 		prepare: function () {
-			setTimeout(() => {
-				if (autoChecked) {
-					return;
-				}
-				autoChecked = true;
-				if (cfg("auto", true) === false) {
-					return;
-				}
-				if (game.online || game.onlineroom || lib.config.mode === "connect") {
-					return;
-				}
-				runCheck({}).catch((e) => log("自动检查失败：" + errText(e)));
-			}, 2500);
+			/* 一开始就发请求，与游戏加载并行，不再白等 */
+			if (autoChecked) {
+				return;
+			}
+			autoChecked = true;
+			if (cfg("auto", true) === false) {
+				return;
+			}
+			if (game.online || game.onlineroom || lib.config.mode === "connect") {
+				return;
+			}
+			runCheck({}).catch((e) => log("自动检查失败：" + errText(e)));
 		},
 		package: {
 			intro: "按文件指纹与新罗服云端仓库自动对齐扩展：仓库地址已内嵌，打开即用；同名扩展以云端为准整体替换，只下载有变化的文件，写入后重启游戏生效。电脑版与手机版（PE）均可。",
 			author: "无名杀工坊",
-			version: "1.2.0",
+			version: "2.0.0",
 		},
 	};
 }

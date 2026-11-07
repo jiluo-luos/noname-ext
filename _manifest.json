@@ -1,5 +1,5 @@
 {
-	"generated": "2026-11-07T18:42:09.004Z",
+	"generated": "2026-11-07T18:52:17.852Z",
 	"generator": "noname-ext-cloud",
 	"note": "此文件由发布脚本自动生成，请勿手改",
 	"extensions": {
@@ -41,8 +41,8 @@
 		},
 		"新罗服云端更新": {
 			"extension.js": {
-				"sha": "0a5394067071e2b5c84970d060df2f47847f1ce1",
-				"size": 22019
+				"sha": "c3e494624ac9ed7b1944c03f02be10d59f46dec6",
+				"size": 27842
 			},
 			"info.json": {
 				"sha": "89785e249b53c3f97acf76206f4e1cb092907ce7",
